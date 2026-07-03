@@ -150,6 +150,14 @@ function init_filesystems (
 )
 
 function init_qcom (
+  # mainline kernel: none of the downstream sysfs knobs exist and irsc_util
+  # blocks forever on the missing IPC-router socket; modem/wifi bring-up is
+  # handled by the remoteproc daemons (rmtfs/tqftpserv/pd-mapper/mss-start).
+  if [[ -d /sys/class/remoteproc ]]; then
+    log_console "mainline kernel: skipping init_qcom"
+    exit 0
+  fi
+
   # raise scaling_max so policy=performance can reach the BOOST top step
   echo 2649600 > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq
   echo 2649600 > /sys/devices/system/cpu/cpufreq/policy4/scaling_max_freq
@@ -208,6 +216,15 @@ function init_gpio (
 )
 
 function init_sound (
+  # mainline kernel: the sound card depends on the ADSP remoteproc chain,
+  # which only comes up after comma-init (the mainline-* units are ordered
+  # after this service) — an unbounded wait here deadlocks the whole boot
+  # (comma-init is Before=sysinit.target, so even getty never starts).
+  if [[ -d /sys/class/remoteproc ]]; then
+    log_console "mainline kernel: skipping init_sound"
+    exit 0
+  fi
+
   await grep -qs "^ONLINE$" /proc/asound/card0/state
   echo "sound card online"
 
